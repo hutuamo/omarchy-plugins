@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "hutuamo.barstats",
   "name": "Bar Stats",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "hutuamo",
-  "description": "Shows CPU usage, memory usage and CPU temperature in the Omarchy status bar",
+  "description": "Shows CPU usage, memory usage and CPU temperature in the Omarchy status bar, with per-item display toggles in the hover popup",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Bar Stats",
-    "description": "CPU, memory and temperature readout with hover details",
+    "description": "CPU, memory and temperature readout with hover popup display toggles",
     "category": "System",
     "defaultSection": "right",
     "allowMultiple": false

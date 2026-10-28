@@ -18,18 +18,43 @@ BarWidget {
   property real memTotalGb: 0
   property int temp: 0
   property bool hasTemp: false
-  property var cpuHistory: []
+
+  // 显示开关，持久化在 shell.json 的条目里（缺省全开）
+  readonly property bool showCpu: setting("showCpu", true)
+  readonly property bool showMem: setting("showMem", true)
+  readonly property bool showTemp: setting("showTemp", true)
+  readonly property int enabledCount: (showCpu ? 1 : 0) + (showMem ? 1 : 0) + (showTemp ? 1 : 0)
+
+  // 最少保留一项开启：关掉最后一个开着的项时直接忽略
+  function toggleItem(key) {
+    var current = key === "showCpu" ? showCpu : key === "showMem" ? showMem : showTemp
+    if (current && enabledCount <= 1) return
+
+    var entry = { id: root.moduleName }
+    for (var k in root.settings) if (k !== "id") entry[k] = root.settings[k]
+    entry[key] = !current
+
+    // 先本地生效让开关立即响应，写回 shell.json 后 bar 会回填同样的值
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
 
   readonly property color fg: root.bar ? root.bar.barForeground : Commons.Color.popups.text
-  readonly property string compactText: root.cpu + "% " + root.memPercent + "% " + (root.hasTemp ? root.temp + "°C" : "--°C")
+  readonly property string labelFont: root.bar ? root.bar.fontFamily : Style.font.family
+
+  readonly property string compactText: {
+    var parts = []
+    if (showCpu) parts.push(root.cpu + "%")
+    if (showMem) parts.push(root.memPercent + "%")
+    if (showTemp) parts.push(root.hasTemp ? root.temp + "°C" : "--°C")
+    return parts.join(" ")
+  }
 
   function update(raw) {
     try {
       var data = JSON.parse(String(raw).trim())
-      if (data.cpu !== undefined) {
-        root.cpu = data.cpu
-        root.cpuHistory = root.cpuHistory.slice(-29).concat(data.cpu)
-      }
+      if (data.cpu !== undefined) root.cpu = data.cpu
       if (data.mem_percent !== undefined) root.memPercent = data.mem_percent
       if (data.mem_used_gb !== undefined) root.memUsedGb = data.mem_used_gb
       if (data.mem_total_gb !== undefined) root.memTotalGb = data.mem_total_gb
@@ -145,140 +170,140 @@ BarWidget {
         id: content
         x: card.contentLeftInset
         y: card.contentTopInset
-        spacing: Style.space(14)
+        spacing: Style.space(16)
 
-        Text {
-          text: "System"
-          color: root.fg
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.title
-          font.bold: true
-        }
-
-        // CPU
-        Column {
-          spacing: Style.space(6)
-
-          Row {
-            spacing: Style.space(8)
-            Text {
-              text: "CPU"
-              color: root.fg
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
-            }
-            Text {
-              text: root.cpu + "%"
-              color: root.fg
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-          }
-
-          ProgressBar {
-            width: Style.space(180)
-            value: root.cpu / 100
-            foreground: root.fg
-          }
-
-          CpuGraph {
-            width: Style.space(180)
-            height: Style.space(32)
-            history: root.cpuHistory
-            foreground: root.fg
-          }
-        }
-
-        // Memory
-        Column {
-          spacing: Style.space(6)
-
-          Row {
-            spacing: Style.space(8)
-            Text {
-              text: "Memory"
-              color: root.fg
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
-            }
-            Text {
-              text: root.memUsedGb.toFixed(1) + " / " + root.memTotalGb.toFixed(1) + " GB  (" + root.memPercent + "%)"
-              color: root.fg
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-          }
-
-          ProgressBar {
-            width: Style.space(180)
-            value: root.memPercent / 100
-            foreground: root.fg
-          }
-        }
-
-        // Temperature
+        // ---------- 头部：图标 + 标题 + 副标题 ----------
         Row {
-          spacing: Style.space(8)
+          spacing: Style.space(12)
+
           Text {
-            text: "Temperature"
+            text: ""
             color: root.fg
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.body
+            font.family: root.labelFont
+            font.pixelSize: Style.font.displayLarge
+            anchors.verticalCenter: parent.verticalCenter
           }
-          Text {
-            text: root.hasTemp ? root.temp + "°C" : "--°C"
-            color: root.fg
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.body
-            font.bold: true
+
+          Column {
+            spacing: Style.space(2)
+            anchors.verticalCenter: parent.verticalCenter
+
+            Text {
+              text: "barstats"
+              color: root.fg
+              font.family: root.labelFont
+              font.pixelSize: Style.font.heading
+              font.bold: true
+            }
+            Text {
+              text: "状态栏显示项设置"
+              color: Qt.darker(root.fg, 1.6)
+              font.family: root.labelFont
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 2
+            }
           }
+        }
+
+        PanelSeparator {
+          width: Style.space(280)
+          foreground: root.fg
+        }
+
+        // ---------- 类目开关行 ----------
+        StatRow {
+          glyph: "󰻠"
+          label: "CPU"
+          value: root.cpu + "%"
+          checked: root.showCpu
+          onToggled: root.toggleItem("showCpu")
+        }
+
+        StatRow {
+          glyph: "󰍛"
+          label: "内存"
+          value: root.memUsedGb.toFixed(1) + " / " + root.memTotalGb.toFixed(1) + " GB"
+          checked: root.showMem
+          onToggled: root.toggleItem("showMem")
+        }
+
+        StatRow {
+          glyph: "󰔏"
+          label: "温度"
+          value: root.hasTemp ? root.temp + "°C" : "--°C"
+          checked: root.showTemp
+          onToggled: root.toggleItem("showTemp")
         }
       }
     }
   }
 
-  component ProgressBar: Item {
-    property real value: 0
-    property color foreground: "white"
-    implicitWidth: width
-    implicitHeight: Style.space(6)
+  // 一行类目：图标 + 名称，右侧当前值 + 开关。关闭时整行内容降透明度。
+  component StatRow: Item {
+    id: row
+    property string glyph: ""
+    property string label: ""
+    property string value: ""
+    property bool checked: true
+    signal toggled()
 
-    Rectangle {
-      anchors.fill: parent
-      radius: height / 2
-      color: Util.alpha(foreground, 0.15)
-    }
+    implicitWidth: Style.space(280)
+    implicitHeight: Style.space(32)
 
-    Rectangle {
-      width: Math.max(height, parent.width * Math.max(0, Math.min(1, value)))
-      height: parent.height
-      radius: height / 2
-      color: foreground
-    }
-  }
-
-  component CpuGraph: Item {
-    property var history: []
-    property color foreground: "white"
-
-    Row {
-      anchors.bottom: parent.bottom
+    Item {
+      id: rowContent
       anchors.left: parent.left
-      anchors.right: parent.right
-      spacing: 2
+      anchors.right: sw.left
+      anchors.rightMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      implicitHeight: Math.max(glyphText.implicitHeight, labelText.implicitHeight)
+      opacity: row.checked ? 1.0 : 0.45
 
-      Repeater {
-        model: history
-        Rectangle {
-          required property var modelData
-          width: Math.max(2, Math.floor(parent.width / 30) - 2)
-          height: parent.height * Math.max(0.05, Math.min(1, (modelData || 0) / 100))
-          anchors.bottom: parent.bottom
-          color: foreground
-          radius: 1
-        }
+      Behavior on opacity { NumberAnimation { duration: 120 } }
+
+      Text {
+        id: glyphText
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        text: row.glyph
+        color: root.fg
+        font.family: root.labelFont
+        font.pixelSize: Style.font.iconLarge
+      }
+
+      Text {
+        id: labelText
+        anchors.left: glyphText.right
+        anchors.leftMargin: Style.space(12)
+        anchors.verticalCenter: parent.verticalCenter
+        text: row.label
+        color: root.fg
+        font.family: root.labelFont
+        font.pixelSize: Style.font.subtitle
+      }
+
+      Text {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        text: row.value
+        color: Qt.darker(root.fg, 1.6)
+        font.family: root.labelFont
+        font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    ToggleSwitch {
+      id: sw
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      checked: row.checked
+      foreground: root.fg
+      onToggled: row.toggled()
+
+      PanelToolTip {
+        visible: sw.containsMouse && sw.checked && root.enabledCount <= 1
+        text: "至少保留一项开启"
+        fontFamily: root.labelFont
       }
     }
   }
