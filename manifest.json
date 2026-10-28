@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "hutuamo.barstats",
+  "name": "Bar Stats",
+  "version": "1.0.0",
+  "author": "hutuamo",
+  "description": "Shows CPU usage, memory usage and CPU temperature in the Omarchy status bar",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Bar Stats",
+    "description": "CPU, memory and temperature readout with hover details",
+    "category": "System",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
